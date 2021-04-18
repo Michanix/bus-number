@@ -1,9 +1,12 @@
 import React from 'react';
-const axios = require('axios');
+import axios from 'axios';
+
+import StopAreaForm from './StopAreaForm';
 
 export default class Home extends React.Component {
     constructor(props) {
         super(props);
+        this.baseUrl = "http://localhost:8080/api/v1/stops";
         this.state = {
             areas: []
         }
@@ -11,7 +14,7 @@ export default class Home extends React.Component {
 
     componentDidMount() {
         axios
-            .get('http://localhost:8080/stopAreas')
+            .get(this.baseUrl + "/areas/")
             .then(res => {
                 this.setState({
                     areas: res.data
@@ -26,18 +29,8 @@ export default class Home extends React.Component {
 
     render() {
         const areas = this.state.areas;
-        const listAreas = areas.map(area => {
-            return <option>{area}</option>
-        });
-
-        if (areas === []) {
-            return (<p>No stop areas had been found.</p>);
-        } else {
-            return (
-                <select>
-                    {listAreas}
-                </select>
-            );
-        }
+        return (
+            <StopAreaForm areas={areas} />
+        );
     }
 }

@@ -10,6 +10,13 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/gorilla/mux"
+)
+
+var (
+	baseUrl = "/api/v1"
+	port    = 8080
+	addr    = fmt.Sprintf("localhost:%d", port)
 )
 
 type Route struct {
@@ -39,9 +46,9 @@ func dbConn() (db *sql.DB) {
 		"%s:%s@tcp(%s)/%s?parseTime=true",
 		user, pass, address, dbName)
 
-	db, err2 := sql.Open(driver, dataSourceName)
+	db, err := sql.Open(driver, dataSourceName)
 
-	checkErr(err2)
+	checkErr(err)
 	db.SetConnMaxLifetime(time.Minute)
 	db.SetMaxOpenConns(10)
 	db.SetConnMaxIdleTime(10)
@@ -55,33 +62,41 @@ func setupCorsResponse(w *http.ResponseWriter, req *http.Request) {
 		"POST, GET, OPTIONS, PUT, DELETE")
 	(*w).Header().Set(
 		"Access-Control-Allow-Headers",
-		"Accept, Content-Type, Content-Length, Authorization")
+		"Accept, Content-Length, Authorization")
+	(*w).Header().Set("Content-Type", "application/json")
 }
 
-func getAllStopAres(w http.ResponseWriter, r *http.Request) {
-	setupCorsResponse(&w, r)
+func getColumnStringValues(query string) []string {
+	result := []string{}
 	db := dbConn()
-	rows, err := db.Query(`
-	SELECT DISTINCT stop_area
-	FROM stops 
-	WHERE stop_area <> ""
-	ORDER BY stop_area ASC;`)
+	defer db.Close()
+
+	rows, err := db.Query(query)
 
 	checkErr(err)
 
-	stopAreas := []string{}
-
 	for rows.Next() {
-		var area string
-		rows.Scan(&area)
-		stopAreas = append(stopAreas, area)
+		var value string
+		rows.Scan(&value)
+		result = append(result, value)
 	}
 
+	return result
+}
+
+func AllStopAreasHandler(w http.ResponseWriter, r *http.Request) {
+	setupCorsResponse(&w, r)
+	query := `
+	SELECT DISTINCT stop_area
+	FROM stops 
+	WHERE stop_area <> ""
+	ORDER BY stop_area ASC;`
+
+	stopAreas := getColumnStringValues(query)
 	areas, err := json.MarshalIndent(&stopAreas, "", "  ")
 	checkErr(err)
 
 	w.Write(areas)
-	db.Close()
 }
 
 func getRoutes(w http.ResponseWriter, r *http.Request) {
@@ -115,8 +130,37 @@ func getRoutes(w http.ResponseWriter, r *http.Request) {
 	db.Close()
 }
 
+func AreaStopsHandler(w http.ResponseWriter, r *http.Request) {
+	setupCorsResponse(&w, r)
+	vars := mux.Vars(r)
+	query := fmt.Sprintf(`
+	SELECT DISTINCT stop_name 
+	FROM stops 
+	WHERE stop_area = '%s' 
+	ORDER BY stop_name ASC;`, vars["name"])
+
+	stopNames := getColumnStringValues(query)
+	names, err := json.MarshalIndent(&stopNames, "", "  ")
+	checkErr(err)
+
+	w.Write(names)
+}
+
 func main() {
-	http.HandleFunc("/routes", getRoutes)
-	http.HandleFunc("/stopAreas", getAllStopAres)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	router := mux.NewRouter()
+	apiRouter := router.PathPrefix(baseUrl).Subrouter()
+	apiRouter.HandleFunc("/stops/areas/", AllStopAreasHandler)
+	apiRouter.HandleFunc("/stops/areas/{name}/names/", AreaStopsHandler)
+
+	srv := &http.Server{
+		Handler:      router,
+		Addr:         addr,
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
+	}
+
+	// http.HandleFunc("/routes", getRoutes)
+	// http.HandleFunc(baseUrl+"/stops/areas/", getAllStopAreas)
+	log.Default().Printf("Starting server on http://%s/", addr)
+	log.Fatal(srv.ListenAndServe())
 }
