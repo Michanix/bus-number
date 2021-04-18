@@ -84,7 +84,7 @@ func getColumnStringValues(query string) []string {
 	return result
 }
 
-func AllStopAreasHandler(w http.ResponseWriter, r *http.Request) {
+func AreasHandler(w http.ResponseWriter, r *http.Request) {
 	setupCorsResponse(&w, r)
 	query := `
 	SELECT DISTINCT stop_area
@@ -99,37 +99,6 @@ func AllStopAreasHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(areas)
 }
 
-func getRoutes(w http.ResponseWriter, r *http.Request) {
-	db := dbConn()
-	rows, err := db.Query("SELECT * FROM routes LIMIT 10;")
-
-	checkErr(err)
-
-	routes := []Route{}
-
-	for rows.Next() {
-		var agencyId, routeType int
-		var routeId, shortName, longName string
-		var color, authority string
-		var timestamp time.Time
-
-		rows.Scan(
-			&routeId, &agencyId, &shortName, &longName, &routeType,
-			&color, &authority, &timestamp)
-
-		routes = append(
-			routes,
-			Route{routeId, agencyId, shortName, longName,
-				routeType, color, authority, timestamp})
-	}
-	routesJson, err := json.MarshalIndent(&routes, "", "  ")
-
-	checkErr(err)
-
-	w.Write(routesJson)
-	db.Close()
-}
-
 func AreaStopsHandler(w http.ResponseWriter, r *http.Request) {
 	setupCorsResponse(&w, r)
 	vars := mux.Vars(r)
@@ -137,7 +106,7 @@ func AreaStopsHandler(w http.ResponseWriter, r *http.Request) {
 	SELECT DISTINCT stop_name 
 	FROM stops 
 	WHERE stop_area = '%s' 
-	ORDER BY stop_name ASC;`, vars["name"])
+	ORDER BY stop_name ASC;`, vars["area"])
 
 	stopNames := getColumnStringValues(query)
 	names, err := json.MarshalIndent(&stopNames, "", "  ")
@@ -146,11 +115,32 @@ func AreaStopsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(names)
 }
 
+func BusNumbersHandler(w http.ResponseWriter, r *http.Request) {
+	setupCorsResponse(&w, r)
+	vars := mux.Vars(r)
+	query := fmt.Sprintf(`
+	SELECT DISTINCT routes.route_short_name
+	FROM stops, routes, trips, stop_times
+	WHERE stops.stop_id = stop_times.stop_id
+	AND stop_times.trip_id = trips.trip_id
+	AND trips.route_id = routes.route_id
+	AND stops.stop_name = '%s'
+	ORDER BY stops.stop_area DESC
+	`, vars["stop_name"])
+
+	busNumbers := getColumnStringValues(query)
+	numbers, err := json.MarshalIndent(&busNumbers, "", "  ")
+	checkErr(err)
+
+	w.Write(numbers)
+}
+
 func main() {
 	router := mux.NewRouter()
 	apiRouter := router.PathPrefix(baseUrl).Subrouter()
-	apiRouter.HandleFunc("/stops/areas/", AllStopAreasHandler)
-	apiRouter.HandleFunc("/stops/areas/{name}/names/", AreaStopsHandler)
+	apiRouter.HandleFunc("/bus-stops/areas", AreasHandler)
+	apiRouter.HandleFunc("/bus-stops/areas/{area}/stops", AreaStopsHandler)
+	apiRouter.HandleFunc("/bus-stops/{stop_name}/bus-numbers", BusNumbersHandler)
 
 	srv := &http.Server{
 		Handler:      router,
