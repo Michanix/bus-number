@@ -13,8 +13,9 @@ export default class Home extends React.Component {
     super(props);
     this.state = {
       areas: [],
-      location: null,
-      err: null,
+      lat: 0,
+      lon: 0,
+      err: '',
     };
   }
 
@@ -31,18 +32,24 @@ export default class Home extends React.Component {
             err: err,
           });
         });
-
-    axios.get('http://ip-api.com/json/?fields=status,message,lat,lon')
-        .then((res) => this.setState({location: res.data}))
+    axios.get('https://ipapi.co/json/')
+        .then((res) => {
+          this.setState({
+            lat: res.data.latitude,
+            lon: res.data.longitude,
+          });
+        })
         .catch((err) => this.setState({err: err}));
   }
 
   render() {
-    const areas = this.state.areas;
+    const {areas, lat, lon} = this.state;
     return (
       <div>
-        <StopAreaForm areas={areas} />
-        <p>{this.state.location}</p>
+        {
+            areas == [] || lat == 0 || lon == 0 ? <p>Loading data...</p> :
+            <StopAreaForm areas={areas} lat={lat} lon={lon}/>
+        }
       </div>
     );
   }
