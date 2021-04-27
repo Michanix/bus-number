@@ -5,8 +5,7 @@
 If you interested in running this on localhost, then just clone this repo and run following commands:
 
 ```javascript
-cd client-server
-cd client
+cd /client-server/client
 npm install
 npm run
 ```
@@ -14,5 +13,6 @@ npm run
 And then activate backend(or vice versa):
 
 ```go
+cd /client-server/server/
 go run server.go
 ```
