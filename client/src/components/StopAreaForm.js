@@ -3,6 +3,15 @@
 /* eslint-disable react/prop-types */
 import React from 'react';
 import axios from 'axios';
+import Grid from '@material-ui/core/Grid';
+import CustomForm from './CustomForm';
+import BussesGrid from './BussesGrid';
+import ArrivalTimes from './ArrivalTimes';
+
+import LocationCityIcon from '@material-ui/icons/LocationCity';
+import LocationOnIcon from '@material-ui/icons/LocationOn';
+import ClearAllIcon from '@material-ui/icons/ClearAll';
+import {Fab} from '@material-ui/core';
 
 const instance = axios.create({
   baseURL: 'http://localhost:8080/api/v1/bus-stops/areas',
@@ -10,41 +19,6 @@ const instance = axios.create({
     'Content-Type': 'application/x-www-form-urlencoded',
   },
 });
-
-function getOptions(arr) {
-  const options = arr.map((el) => {
-    // eslint-disable-next-line react/jsx-key
-    return <option>{el}</option>;
-  });
-
-  return options;
-}
-
-function getBusArray(arr, handleClick) {
-  let result;
-  if (arr.length > 0) {
-    result = arr.map((el) => {
-      // eslint-disable-next-line react/jsx-key
-      return <button value={el} onClick={handleClick}>{el}</button>;
-    });
-  } else {
-    result = <p>No available buses.</p>;
-  }
-
-  return result;
-}
-
-function getArrivalArr(arr) {
-  let result;
-  if (arr.length > 0) {
-    result = arr.map((el) => {
-      // eslint-disable-next-line react/jsx-key
-      return <li>{el.arrival} {el.route}</li>;
-    });
-  }
-
-  return result;
-}
 
 async function fetchData(url) {
   instance.defaults.url = url;
@@ -73,18 +47,24 @@ async function sendLoc(url, lat, lon) {
   return res;
 }
 
+function naturalSort(arr) {
+  const collator = new Intl.Collator(
+      undefined,
+      {numeric: true, sensitivity: 'base'},
+  );
+  return arr.sort(collator.compare);
+}
+
 export default class StopAreaForm extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
       area: '',
       stop: '',
-      lat: this.props.lat,
-      lon: this.props.lon,
       stops: [],
       busNumbers: [],
-      areas: [],
       arrivalTimes: [],
+      errMsg: '',
     };
 
     this.handleAreaChange = this.handleAreaChange.bind(this);
@@ -92,10 +72,11 @@ export default class StopAreaForm extends React.Component {
     this.handleStopChange = this.handleStopChange.bind(this);
     this.handleStopSubmit = this.handleStopSubmit.bind(this);
     this.handleClick = this.handleClick.bind(this);
+    this.clearAll = this.clearAll.bind(this);
   }
 
   componentDidMount() {
-    const {lat, lon} = this.state;
+    const {lat, lon} = this.props;
     const data = sendLoc('/closest', lat, lon);
     data.then((res) => {
       console.log(res.data);
@@ -106,77 +87,127 @@ export default class StopAreaForm extends React.Component {
     });
   }
 
-  handleAreaChange(event) {
-    this.setState({area: event.target.value});
-  }
-
-  handleAreaSubmit(event) {
-    const area = this.state.area;
-    const url = `/${area}`;
-    const stops = fetchData(url);
-    stops.then((data) => this.setState({stops: data.data}));
-    event.preventDefault();
-  }
-
-  handleStopChange(event) {
-    this.setState({stop: event.target.value});
-  }
-
-  handleStopSubmit(event) {
-    const {area, stop} = this.state;
-    const url = `/${area}/${stop}`;
-    const busNumbers = fetchData(url);
-    busNumbers.then((data) => {
-      this.setState({busNumbers: data.data});
+  clearAll(event) {
+    this.setState({
+      area: '',
+      stop: '',
+      busNumbers: [],
+      arrivalTimes: [],
     });
     event.preventDefault();
   }
 
-  handleClick(event, idx) {
+  handleAreaChange(area) {
+    this.setState({
+      area: area,
+      stop: '',
+    });
+  }
+
+  handleAreaSubmit(event) {
+    const area = this.state.area;
+    if (!(area === '')) {
+      const url = `/${area}`;
+      const stops = fetchData(url);
+      stops.then((data) => this.setState({
+        stop: data.data[0],
+        stops: data.data,
+      }));
+    }
+
+    event.preventDefault();
+  }
+
+  handleStopChange(stop) {
+    this.setState({
+      stop: stop,
+      busNumbers: [],
+      arrivalTimes: [],
+    });
+  }
+
+  handleStopSubmit(event) {
     const {area, stop} = this.state;
-    const number = event.target.value;
+    if (area === '' || stop === '') {
+      this.setState({
+        busNumbers: [],
+        arrivalTimes: [],
+      });
+    } else {
+      const url = `/${area}/${stop}`;
+      const busNumbers = fetchData(url);
+      busNumbers.then((data) => {
+        const numbers = naturalSort(data.data);
+        this.setState({busNumbers: numbers});
+      });
+    }
+
+    event.preventDefault();
+  }
+
+  handleClick(number) {
+    const {area, stop} = this.state;
     const url = `/${area}/${stop}/${number}`;
     const arrivals = fetchData(url);
     arrivals.then((data) => {
       console.log(data.data);
       this.setState({arrivalTimes: data.data});
     });
-    event.preventDefault();
   }
 
   render() {
-    const {stops, busNumbers, arrivalTimes} = this.state;
-    const areasList = getOptions(this.props.areas);
-    const stopsList = getOptions(stops);
-    const busNumsList = getBusArray(busNumbers,
-        this.handleClick);
-    const times = getArrivalArr(arrivalTimes);
-    /* Add conditional rendering */
+    const {
+      area,
+      stop,
+      stops,
+      busNumbers,
+      arrivalTimes,
+      errMsg,
+    } = this.state;
+    const areas = this.props.areas;
 
     return (
       <div>
-        <form onSubmit={this.handleAreaSubmit}>
-          <label>
-                        Pick your area:
-            <select value={this.state.area} onChange={this.handleAreaChange}>
-              {areasList}
-            </select>
-          </label>
-          <input type='submit' value='Submit' />
-        </form>
-
-
-        <form onSubmit={this.handleStopSubmit}>
-          <label>
-                        Pick your bus stop:
-            <select value={this.state.stop} onChange={this.handleStopChange}>
-              {stopsList}
-            </select>
-          </label>
-          <input type='submit' value='Submit' />
-        </form>
-        {busNumsList}
-        {times}
+        <Grid container direction="column" justify="center" spacing={4}>
+          <Grid item>
+            <CustomForm
+              label={'Area: '}
+              value={area}
+              values={areas}
+              handleSubmit={this.handleAreaSubmit}
+              handleChange={this.handleAreaChange}
+              btnIcon={<LocationCityIcon />}/>
+            {
+              errMsg.length > 0 && <p>{errMsg}</p>
+            }
+          </Grid>
+          <Grid item>
+            <CustomForm
+              label={'Stop: '}
+              value={stop}
+              values={stops}
+              handleChange={this.handleStopChange}
+              handleSubmit={this.handleStopSubmit}
+              btnIcon={<LocationOnIcon />}
+            />
+          </Grid>
+          <Grid item>
+            <BussesGrid busses={busNumbers} handleClick={this.handleClick}/>
+          </Grid>
+          <Grid item>
+            <ArrivalTimes times={arrivalTimes} />
+          </Grid>
+          <Grid item>
+            <Fab
+              color="secondary"
+              size="medium"
+              variant="extended"
+              onClick={this.clearAll}>
+              <ClearAllIcon />
+                Clear All
+            </Fab>
+          </Grid>
+        </Grid>
       </div>
     );
   }

@@ -30,6 +30,9 @@ func checkErr(err error) {
 	}
 }
 
+/*
+	Makes connection to databse.
+*/
 func dbConn() (db *sql.DB) {
 	driver := "mysql"
 	user := os.Getenv("DB_USER")
@@ -51,6 +54,9 @@ func dbConn() (db *sql.DB) {
 	return db
 }
 
+/*
+	Setups CORS policy.
+*/
 func setupCorsResponse(w *http.ResponseWriter, req *http.Request) {
 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 	(*w).Header().Set(
@@ -62,6 +68,9 @@ func setupCorsResponse(w *http.ResponseWriter, req *http.Request) {
 	(*w).Header().Set("Content-Type", "application/json")
 }
 
+/*
+	Helper function to convert database's row into array of string.
+*/
 func getColumnStringValues(query string) []string {
 	result := []string{}
 	db := dbConn()
@@ -80,6 +89,9 @@ func getColumnStringValues(query string) []string {
 	return result
 }
 
+/*
+	Returns JSON array containing all distinct bus areas in database.
+*/
 func AreasHandler(w http.ResponseWriter, r *http.Request) {
 	setupCorsResponse(&w, r)
 	query := `
@@ -95,6 +107,9 @@ func AreasHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(areas)
 }
 
+/*
+	Returns JSON array containing all bus stops for particular area.
+*/
 func AreaStopsHandler(w http.ResponseWriter, r *http.Request) {
 	setupCorsResponse(&w, r)
 	vars := mux.Vars(r)
@@ -111,6 +126,9 @@ func AreaStopsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(names)
 }
 
+/*
+	Returns JSON array containing all bus numbers for particular bus stop.
+*/
 func BusNumbersHandler(w http.ResponseWriter, r *http.Request) {
 	setupCorsResponse(&w, r)
 	vars := mux.Vars(r)
@@ -132,6 +150,15 @@ func BusNumbersHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(numbers)
 }
 
+/*
+	Returns JSON object containing area and bus stop.
+
+	JSON response:
+	{
+		"area": "Tartu Linn",
+		"stop": "Rebase"
+	}
+*/
 func ClosestAreaHandler(w http.ResponseWriter, r *http.Request) {
 	setupCorsResponse(&w, r)
 	var location Location
@@ -187,6 +214,9 @@ func formatDepartureQuery(
 	return query
 }
 
+/*
+	Helper function for handler below.
+*/
 func getArrivalTimes(query string) []map[string]string {
 	db := dbConn()
 	defer db.Close()
@@ -208,6 +238,10 @@ func getArrivalTimes(query string) []map[string]string {
 	return arrivalTimes
 }
 
+/*
+	Returns JSON array containing 5 closest departure times.
+	If returned array from database contains less than 5 entries, makes another db hit.
+*/
 func DepartureTimesHandler(w http.ResponseWriter, r *http.Request) {
 	setupCorsResponse(&w, r)
 	vars := mux.Vars(r)
