@@ -14,5 +14,6 @@ And then activate backend(or vice versa):
 
 ```go
 cd /client-server/server/
+go mod download
 go run server.go
 ```
